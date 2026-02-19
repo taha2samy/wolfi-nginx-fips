@@ -12,6 +12,7 @@ MOD_SRC_DIR="/src/modules_src"
 mkdir -p "${MOD_SRC_DIR}" "${FINAL_ROOTFS}/usr/lib/nginx/modules" "${FINAL_ROOTFS}/etc/nginx"
 
 if [ ! -d "${NGINX_SRC}" ]; then
+    echo ">>> Downloading Nginx v${NGINX_VERSION}..."
     wget -L -qO- "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
 fi
 
@@ -53,10 +54,26 @@ for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
         dest="${MOD_SRC_DIR}/${mod_name}"
         
         if [ ! -d "${dest}" ]; then
+            echo ">>> [DIAGNOSTIC] Processing Module: ${mod_name}"
+            echo "    + URL: ${url}"
+            
             mkdir -p "${dest}"
             wget -L -qO /tmp/mod.tar.gz "${url}"
+            
+            echo "    + File Stats: $(ls -lh /tmp/mod.tar.gz)"
+            echo "    + File Type: $(file /tmp/mod.tar.gz)"
+            echo "    + First 50 bytes: $(head -c 50 /tmp/mod.tar.gz | cat -v)"
+            
+            FILE_SIZE=$(stat -c%s /tmp/mod.tar.gz)
+            if [ "$FILE_SIZE" -lt 500 ]; then
+                echo "!!! ERROR: Downloaded file for ${mod_name} is too small ($FILE_SIZE bytes). It might be an HTML error page."
+                cat /tmp/mod.tar.gz
+                exit 1
+            fi
+
             tar -xzf /tmp/mod.tar.gz -C "${dest}" --strip-components=1
             rm /tmp/mod.tar.gz
+            echo "    + Extraction: SUCCESS"
         fi
         actual_flag=$(echo "${flag}" | sed "s|{{DIR}}|${dest}|g")
         CONFIGURE_FLAGS+=("${actual_flag}")
@@ -66,6 +83,7 @@ for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
 done
 
 cd "${NGINX_SRC}"
+echo ">>> Configuring Nginx with flags: ${CONFIGURE_FLAGS[*]}"
 ./configure "${CONFIGURE_FLAGS[@]}"
 make -j$(nproc)
 make DESTDIR="${FINAL_ROOTFS}" install
