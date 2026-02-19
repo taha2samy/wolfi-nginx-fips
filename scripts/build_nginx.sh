@@ -17,13 +17,14 @@ fi
 
 sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
 
-export PATH="/usr/local/bin:${PATH}"
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig:${PKG_CONFIG_PATH}"
-export C_INCLUDE_PATH="/usr/local/include"
-export LIBRARY_PATH="/usr/local/lib:/usr/local/lib64"
-export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64"
+ln -sf /usr/local/include/openssl /usr/include/openssl
+ln -sf /usr/local/lib/libssl.so /usr/lib/libssl.so
+ln -sf /usr/local/lib/libcrypto.so /usr/lib/libcrypto.so
+ln -sf /usr/local/lib/libssl.so.3 /usr/lib/libssl.so.3
+ln -sf /usr/local/lib/libcrypto.so.3 /usr/lib/libcrypto.so.3
 
-openssl version
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
+ldconfig /usr/local/lib
 
 CONFIGURE_FLAGS=(
     "--prefix=/etc/nginx"
@@ -47,15 +48,14 @@ CONFIGURE_FLAGS=(
     "--with-stream"
     "--with-stream_ssl_module"
     "--with-stream_ssl_preread_module"
-    "--with-cc-opt=-I/usr/local/include -O3 -fstack-protector-strong -Wno-error -Wno-unterminated-string-initialization -D_FORTIFY_SOURCE=2"
-    "--with-ld-opt=-L/usr/local/lib -L/usr/local/lib64 -Wl,-rpath,/usr/local/lib:/usr/local/lib64 -lssl -lcrypto -ldl -lpthread"
+    "--with-cc-opt='-I/usr/local/include -O3 -fstack-protector-strong -Wno-error'"
+    "--with-ld-opt='-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lssl -lcrypto -ldl -lpthread'"
 )
 
 for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
     mod_info=$(echo "${MODULES_JSON}" | jq -c ".\"${mod_name}\"")
     type=$(echo "${mod_info}" | jq -r '.type')
     flag=$(echo "${mod_info}" | jq -r '.flag')
-
     if [[ "$type" == "ext" ]]; then
         url=$(echo "${mod_info}" | jq -r '.url')
         dest="${MOD_SRC_DIR}/${mod_name}"
