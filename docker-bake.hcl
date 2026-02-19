@@ -18,7 +18,7 @@ variable "FIPS_STATIC" { default = "ghcr.io/${OWNER}/wolfi-openssl-fips:3.5.5-di
 target "_common" {
     context    = "."
     dockerfile = "Dockerfile"
-    platforms  = ["linux/amd64", "linux/arm64"]
+    platforms  = ["linux/amd64"]
   
     args = {
         NGINX_VERSION         = "${NGINX_VERSION}"
