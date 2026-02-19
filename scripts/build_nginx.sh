@@ -12,17 +12,18 @@ MOD_SRC_DIR="/src/modules_src"
 mkdir -p "${MOD_SRC_DIR}" "${FINAL_ROOTFS}/usr/lib/nginx/modules" "${FINAL_ROOTFS}/etc/nginx"
 
 if [ ! -d "${NGINX_SRC}" ]; then
-    echo ">>> Downloading Nginx v${NGINX_VERSION}..."
     wget -L -qO- "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
 fi
 
 sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
-export LD_LIBRARY_PATH="/usr/local/lib:/usr/lib"
 
-echo ">>> [CHECK] OpenSSL Headers: $(ls /usr/local/include/openssl/ssl.h)"
-echo ">>> [CHECK] OpenSSL Libs: $(ls /usr/local/lib/libssl.so)"
+export PATH="/usr/local/bin:${PATH}"
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib64/pkgconfig:${PKG_CONFIG_PATH}"
+export C_INCLUDE_PATH="/usr/local/include"
+export LIBRARY_PATH="/usr/local/lib:/usr/local/lib64"
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64"
 
+openssl version
 
 CONFIGURE_FLAGS=(
     "--prefix=/etc/nginx"
@@ -47,7 +48,7 @@ CONFIGURE_FLAGS=(
     "--with-stream_ssl_module"
     "--with-stream_ssl_preread_module"
     "--with-cc-opt=-I/usr/local/include -O3 -fstack-protector-strong -Wno-error -Wno-unterminated-string-initialization -D_FORTIFY_SOURCE=2"
-    "--with-ld-opt=-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lssl -lcrypto -ldl -lpthread"
+    "--with-ld-opt=-L/usr/local/lib -L/usr/local/lib64 -Wl,-rpath,/usr/local/lib:/usr/local/lib64 -lssl -lcrypto -ldl -lpthread"
 )
 
 for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
@@ -58,28 +59,18 @@ for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
     if [[ "$type" == "ext" ]]; then
         url=$(echo "${mod_info}" | jq -r '.url')
         dest="${MOD_SRC_DIR}/${mod_name}"
-        
         if [ ! -d "${dest}" ]; then
-            echo ">>> [DIAGNOSTIC] Processing Module: ${mod_name}"
-            echo "    + URL: ${url}"
-            
             mkdir -p "${dest}"
-            wget -L -qO /tmp/mod.tar.gz "${url}"
-            
-            echo "    + File Stats: $(ls -lh /tmp/mod.tar.gz)"
-            echo "    + File Type: $(file /tmp/mod.tar.gz)"
-            echo "    + First 50 bytes: $(head -c 50 /tmp/mod.tar.gz | cat -v)"
-            
-            FILE_SIZE=$(stat -c%s /tmp/mod.tar.gz)
-            if [ "$FILE_SIZE" -lt 500 ]; then
-                echo "!!! ERROR: Downloaded file for ${mod_name} is too small ($FILE_SIZE bytes). It might be an HTML error page."
-                cat /tmp/mod.tar.gz
-                exit 1
+            wget -L -qO /tmp/mod_archive "${url}"
+            MAGIC=$(head -c 4 /tmp/mod_archive | cat -v)
+            if [[ "$MAGIC" == "PK^C^D" ]]; then
+                unzip -q /tmp/mod_archive -d /tmp/unpacked
+                mv /tmp/unpacked/*/* "${dest}/" || mv /tmp/unpacked/* "${dest}/" || true
+                rm -rf /tmp/unpacked
+            else
+                tar -xzf /tmp/mod_archive -C "${dest}" --strip-components=1
             fi
-
-            tar -xzf /tmp/mod.tar.gz -C "${dest}" --strip-components=1
-            rm /tmp/mod.tar.gz
-            echo "    + Extraction: SUCCESS"
+            rm /tmp/mod_archive
         fi
         actual_flag=$(echo "${flag}" | sed "s|{{DIR}}|${dest}|g")
         CONFIGURE_FLAGS+=("${actual_flag}")
@@ -89,7 +80,6 @@ for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
 done
 
 cd "${NGINX_SRC}"
-echo ">>> Configuring Nginx with flags: ${CONFIGURE_FLAGS[*]}"
 ./configure "${CONFIGURE_FLAGS[@]}"
 make -j$(nproc)
 make DESTDIR="${FINAL_ROOTFS}" install
@@ -102,8 +92,7 @@ fi
 {
     echo "# Auto-generated Dynamic Modules Loader"
     if [ -d "${FINAL_ROOTFS}/usr/lib/nginx/modules" ]; then
-        for so in "${FINAL_ROOTFS}/usr/lib/nginx/modules"/*.so; do
-            [[ -e "$so" ]] || continue
+        for so in $(ls "${FINAL_ROOTFS}/usr/lib/nginx/modules"/*.so 2>/dev/null); do
             echo "load_module /usr/lib/nginx/modules/$(basename "$so");"
         done
     fi
