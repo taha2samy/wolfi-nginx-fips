@@ -40,8 +40,8 @@ variable "modules_db" {
     # NJS - Nginx JavaScript
         "njs" = {
       type = "ext",
-      url  = "https://github.com/nginx/njs/archive/refs/tags/0.9.5.zip",
-      sha  = "0cb05a4060608dbc583208ea5e59750ace743d82bb7f200faaf74d564c40d47c",
+      url  = "https://github.com/nginx/njs/archive/refs/tags/0.9.5.tar.gz",
+      sha  = "351a857abfd48c1e5e9c5d01bea046f3cbd2aa1c8ba956703920a5d57e046d7a",
       flag = "--add-dynamic-module={{DIR}}/nginx"
     }
 
