@@ -16,18 +16,18 @@ if [ ! -d "${NGINX_SRC}" ]; then
 fi
 
 if [ ! -f "/usr/local/include/openssl/ssl.h" ]; then
-    echo ">>> OpenSSL Headers missing. Fetching from source..."
+    echo ">>> Missing OpenSSL Headers. Fetching from source..."
     wget -L -qO /tmp/openssl.tar.gz "https://www.openssl.org/source/openssl-3.1.2.tar.gz"
     mkdir -p /tmp/openssl-src
     tar -xzf /tmp/openssl.tar.gz -C /tmp/openssl-src --strip-components=1
     mkdir -p /usr/local/include/openssl
-    cp -r /tmp/openssl-src/include/openssl/* /usr/local/include/openssl/
+    cp -rf /tmp/openssl-src/include/openssl/* /usr/local/include/openssl/
     rm -rf /tmp/openssl.tar.gz /tmp/openssl-src
 fi
 
 sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
 
-export C_INCLUDE_PATH="/usr/local/include"
+export CPATH="/usr/local/include"
 export LIBRARY_PATH="/usr/local/lib"
 export LD_LIBRARY_PATH="/usr/local/lib"
 
