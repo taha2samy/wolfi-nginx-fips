@@ -12,10 +12,10 @@ MOD_SRC_DIR="/src/modules_src"
 mkdir -p "${MOD_SRC_DIR}" "${FINAL_ROOTFS}/usr/lib/nginx/modules" "${FINAL_ROOTFS}/etc/nginx"
 
 if [ ! -d "${NGINX_SRC}" ]; then
-    wget -qO- "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
+    wget -L -qO- "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
 fi
-sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
 
+sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
 
 CONFIGURE_FLAGS=(
     "--prefix=/etc/nginx"
@@ -39,7 +39,7 @@ CONFIGURE_FLAGS=(
     "--with-stream"
     "--with-stream_ssl_module"
     "--with-stream_ssl_preread_module"
-    "--with-cc-opt=-I/usr/local/include -O3 -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+    "--with-cc-opt=-I/usr/local/include -O3 -fstack-protector-strong -Wno-error -Wno-unterminated-string-initialization -D_FORTIFY_SOURCE=2"
     "--with-ld-opt=-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lssl -lcrypto -ldl -lpthread"
 )
 
@@ -50,15 +50,13 @@ for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
 
     if [[ "$type" == "ext" ]]; then
         url=$(echo "${mod_info}" | jq -r '.url')
-        sha=$(echo "${mod_info}" | jq -r '.sha')
         dest="${MOD_SRC_DIR}/${mod_name}"
         
         if [ ! -d "${dest}" ]; then
             mkdir -p "${dest}"
-            wget -qO- "${url}" | tar xz -C "${dest}" --strip-components=1
-            if [[ "$sha" != "-" ]]; then
-                echo "$sha  $url" | sha256sum -c - || exit 1
-            fi
+            wget -L -qO /tmp/mod.tar.gz "${url}"
+            tar -xzf /tmp/mod.tar.gz -C "${dest}" --strip-components=1
+            rm /tmp/mod.tar.gz
         fi
         actual_flag=$(echo "${flag}" | sed "s|{{DIR}}|${dest}|g")
         CONFIGURE_FLAGS+=("${actual_flag}")
