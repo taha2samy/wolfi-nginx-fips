@@ -14,6 +14,8 @@ mkdir -p "${MOD_SRC_DIR}" "${FINAL_ROOTFS}/usr/lib/nginx/modules" "${FINAL_ROOTF
 if [ ! -d "${NGINX_SRC}" ]; then
     wget -qO- "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
 fi
+sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
+
 
 CONFIGURE_FLAGS=(
     "--prefix=/etc/nginx"
