@@ -18,13 +18,16 @@ fi
 sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
 
 ln -sf /usr/local/include/openssl /usr/include/openssl
-ln -sf /usr/local/lib/libssl.so /usr/lib/libssl.so
-ln -sf /usr/local/lib/libcrypto.so /usr/lib/libcrypto.so
-ln -sf /usr/local/lib/libssl.so.3 /usr/lib/libssl.so.3
-ln -sf /usr/local/lib/libcrypto.so.3 /usr/lib/libcrypto.so.3
+cp -P /usr/local/lib/libssl.so* /usr/lib/
+cp -P /usr/local/lib/libcrypto.so* /usr/lib/
 
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
-ldconfig /usr/local/lib
+export C_INCLUDE_PATH="/usr/local/include:/usr/include"
+export LIBRARY_PATH="/usr/local/lib:/usr/lib"
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/lib"
+
+echo ">>> Verifying OpenSSL FIPS Installation..."
+openssl version
+ls -l /usr/local/include/openssl/ssl.h
 
 CONFIGURE_FLAGS=(
     "--prefix=/etc/nginx"
@@ -85,15 +88,11 @@ make -j$(nproc)
 make DESTDIR="${FINAL_ROOTFS}" install
 
 strip --strip-all "${FINAL_ROOTFS}/usr/sbin/nginx"
-if [ -d "${FINAL_ROOTFS}/usr/lib/nginx/modules" ]; then
-    find "${FINAL_ROOTFS}/usr/lib/nginx/modules" -name "*.so" -exec strip --strip-all {} +
-fi
+find "${FINAL_ROOTFS}/usr/lib/nginx/modules" -name "*.so" -exec strip --strip-all {} + 2>/dev/null || true
 
 {
     echo "# Auto-generated Dynamic Modules Loader"
-    if [ -d "${FINAL_ROOTFS}/usr/lib/nginx/modules" ]; then
-        for so in $(ls "${FINAL_ROOTFS}/usr/lib/nginx/modules"/*.so 2>/dev/null); do
-            echo "load_module /usr/lib/nginx/modules/$(basename "$so");"
-        done
-    fi
+    for so in $(ls "${FINAL_ROOTFS}/usr/lib/nginx/modules"/*.so 2>/dev/null); do
+        echo "load_module /usr/lib/nginx/modules/$(basename "$so");"
+    done
 } > "${FINAL_ROOTFS}/etc/nginx/modules.conf"
