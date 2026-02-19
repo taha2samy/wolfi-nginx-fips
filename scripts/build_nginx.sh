@@ -12,17 +12,15 @@ MOD_SRC_DIR="/src/modules_src"
 mkdir -p "${MOD_SRC_DIR}" "${FINAL_ROOTFS}/usr/lib/nginx/modules" "${FINAL_ROOTFS}/etc/nginx"
 
 if [ ! -d "${NGINX_SRC}" ]; then
-    wget -L -qO- "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
+    curl -L "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
 fi
 
 if [ ! -d "/usr/local/include/openssl" ]; then
-    echo ">>> Fetching OpenSSL Headers..."
-    wget -L -qO /tmp/openssl.tar.gz "https://www.openssl.org/source/openssl-3.1.2.tar.gz"
-    mkdir -p /tmp/openssl-src
-    tar -xzf /tmp/openssl.tar.gz -C /tmp/openssl-src --strip-components=1
+    echo ">>> Injecting OpenSSL Development Headers..."
+    curl -L "https://www.openssl.org/source/openssl-3.1.2.tar.gz" | tar xz -C /tmp
     mkdir -p /usr/local/include
-    cp -rf /tmp/openssl-src/include/openssl /usr/local/include/
-    rm -rf /tmp/openssl.tar.gz /tmp/openssl-src
+    cp -rf /tmp/openssl-3.1.2/include/openssl /usr/local/include/
+    rm -rf /tmp/openssl-3.1.2
 fi
 
 ln -sf /usr/local/lib/libssl.so.3 /usr/local/lib/libssl.so || true
@@ -30,9 +28,10 @@ ln -sf /usr/local/lib/libcrypto.so.3 /usr/local/lib/libcrypto.so || true
 
 sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
 
-export CPATH="/usr/local/include"
+export LDFLAGS="-L/usr/local/lib -Wl,-rpath,/usr/local/lib"
+export CPPFLAGS="-I/usr/local/include"
+export C_INCLUDE_PATH="/usr/local/include"
 export LIBRARY_PATH="/usr/local/lib"
-export LD_LIBRARY_PATH="/usr/local/lib"
 
 CONFIGURE_FLAGS=(
     "--prefix=/etc/nginx"
@@ -56,8 +55,8 @@ CONFIGURE_FLAGS=(
     "--with-stream"
     "--with-stream_ssl_module"
     "--with-stream_ssl_preread_module"
-    "--with-cc-opt=-I/usr/local/include -O3 -fstack-protector-strong -Wno-error"
-    "--with-ld-opt=-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lssl -lcrypto -ldl -lpthread"
+    "--with-cc-opt='-I/usr/local/include -O3 -fstack-protector-strong -Wno-error'"
+    "--with-ld-opt='-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lssl -lcrypto -ldl -lpthread'"
 )
 
 for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
@@ -69,7 +68,8 @@ for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
         dest="${MOD_SRC_DIR}/${mod_name}"
         if [ ! -d "${dest}" ]; then
             mkdir -p "${dest}"
-            wget -L -qO /tmp/mod_archive "${url}"
+            echo ">>> Fetching Module: ${mod_name}"
+            curl -L "$url" -o /tmp/mod_archive
             MAGIC=$(head -c 4 /tmp/mod_archive | cat -v)
             if [[ "$MAGIC" == "PK^C^D" ]]; then
                 unzip -q /tmp/mod_archive -d /tmp/unpacked
@@ -90,13 +90,14 @@ done
 cd "${NGINX_SRC}"
 ./configure "${CONFIGURE_FLAGS[@]}"
 make -j$(nproc)
-make DESTDIR="${FINAL_ROOTFS}" install
+make install DESTDIR="${FINAL_ROOTFS}"
 
 strip --strip-all "${FINAL_ROOTFS}/usr/sbin/nginx"
 if [ -d "${FINAL_ROOTFS}/usr/lib/nginx/modules" ]; then
     find "${FINAL_ROOTFS}/usr/lib/nginx/modules" -name "*.so" -exec strip --strip-all {} + 2>/dev/null || true
 fi
 
+mkdir -p "${FINAL_ROOTFS}/etc/nginx"
 {
     echo "# Auto-generated Dynamic Modules Loader"
     if [ -d "${FINAL_ROOTFS}/usr/lib/nginx/modules" ]; then
