@@ -11,10 +11,9 @@ ARG ENABLED_MODULES
 
 RUN --mount=type=cache,target=/var/cache/apk \
     apk add --no-cache \
-    build-base pkgconf wget openssl-dev pcre-dev zlib-dev linux-headers \
+    build-base pkgconf wget pcre-dev zlib-dev linux-headers \
     coreutils gd-dev libxml2-dev libxslt-dev geoip-dev libmaxminddb-dev \
-    binutils scanelf posix-libc-utils bash tzdata ca-certificates perl perl-dev
-
+    binutils scanelf posix-libc-utils bash tzdata ca-certificates perl perl-dev jq
 
 COPY --from=ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5 /usr/local /usr/local
 ENV LD_LIBRARY_PATH="/usr/local/lib"
@@ -25,17 +24,13 @@ COPY scripts/extract_libs.sh /usr/bin/extract_libs.sh
 RUN chmod +x /usr/bin/build_nginx.sh /usr/bin/extract_libs.sh
 
 RUN --mount=type=cache,target=/root/.ccache \
-    /usr/bin/build_nginx.sh "${NGINX_VERSION}" '${MODULES_JSON}' '${ENABLED_MODULES}'
+    /usr/bin/build_nginx.sh "${NGINX_VERSION}" "${MODULES_JSON}" "${ENABLED_MODULES}"
 
-RUN mkdir -p /rootfs/etc/nginx /rootfs/usr/sbin /rootfs/usr/lib/nginx/modules \
-    /rootfs/var/log/nginx /rootfs/var/cache/nginx /rootfs/var/run /rootfs/tmp \
-    /rootfs/var/lib/nginx && \
-    cp /usr/sbin/nginx /rootfs/usr/sbin/ && \
-    [ -d /usr/lib/nginx/modules ] && cp -r /usr/lib/nginx/modules/* /rootfs/usr/lib/nginx/modules/ || true && \
-    cp -r /etc/nginx/* /rootfs/etc/nginx/ && \
+RUN mkdir -p /rootfs/etc /rootfs/var/log/nginx /rootfs/var/cache/nginx /rootfs/var/run /rootfs/tmp /rootfs/var/lib/nginx && \
     echo 'hosts: files dns' > /rootfs/etc/nsswitch.conf && \
-    echo 'nginx:x:101:101:nginx:/var/cache/nginx:/sbin/nologin' > /rootfs/etc/passwd && \
-    echo 'nginx:x:101:' > /rootfs/etc/group
+    echo 'nginx:x:101:101:nginx:/var/cache/nginx:/sbin/nologin' >> /rootfs/etc/passwd && \
+    echo 'nginx:x:101:' >> /rootfs/etc/group && \
+    chmod 1777 /rootfs/tmp
 
 RUN /usr/bin/extract_libs.sh /rootfs/usr/sbin/nginx /rootfs/usr/lib/nginx/modules/*.so
 
@@ -58,6 +53,7 @@ FROM ${FIPS_IMAGE} AS standard
 ARG NGINX_VERSION
 ARG PROFILE
 USER root
+RUN apk add --no-cache bash curl ca-certificates tzdata
 LABEL variant="standard" profile="${PROFILE}"
 COPY --from=builder /rootfs /
 COPY config/ /etc/nginx/
