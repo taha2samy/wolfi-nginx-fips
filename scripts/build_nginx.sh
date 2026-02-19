@@ -15,15 +15,18 @@ if [ ! -d "${NGINX_SRC}" ]; then
     wget -L -qO- "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
 fi
 
-if [ ! -f "/usr/local/include/openssl/ssl.h" ]; then
-    echo ">>> Missing OpenSSL Headers. Fetching from source..."
+if [ ! -d "/usr/local/include/openssl" ]; then
+    echo ">>> Fetching OpenSSL Headers..."
     wget -L -qO /tmp/openssl.tar.gz "https://www.openssl.org/source/openssl-3.1.2.tar.gz"
     mkdir -p /tmp/openssl-src
     tar -xzf /tmp/openssl.tar.gz -C /tmp/openssl-src --strip-components=1
-    mkdir -p /usr/local/include/openssl
-    cp -rf /tmp/openssl-src/include/openssl/* /usr/local/include/openssl/
+    mkdir -p /usr/local/include
+    cp -rf /tmp/openssl-src/include/openssl /usr/local/include/
     rm -rf /tmp/openssl.tar.gz /tmp/openssl-src
 fi
+
+ln -sf /usr/local/lib/libssl.so.3 /usr/local/lib/libssl.so || true
+ln -sf /usr/local/lib/libcrypto.so.3 /usr/local/lib/libcrypto.so || true
 
 sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
 
@@ -53,8 +56,8 @@ CONFIGURE_FLAGS=(
     "--with-stream"
     "--with-stream_ssl_module"
     "--with-stream_ssl_preread_module"
-    "--with-cc-opt='-I/usr/local/include -O3 -fstack-protector-strong -Wno-error'"
-    "--with-ld-opt='-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lssl -lcrypto -ldl -lpthread'"
+    "--with-cc-opt=-I/usr/local/include -O3 -fstack-protector-strong -Wno-error"
+    "--with-ld-opt=-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lssl -lcrypto -ldl -lpthread"
 )
 
 for mod_name in $(echo "${ENABLED_MODULES}" | jq -r '.[]'); do
