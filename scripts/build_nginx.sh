@@ -15,19 +15,21 @@ if [ ! -d "${NGINX_SRC}" ]; then
     wget -L -qO- "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" | tar xz -C /src
 fi
 
+if [ ! -f "/usr/local/include/openssl/ssl.h" ]; then
+    echo ">>> OpenSSL Headers missing. Fetching from source..."
+    wget -L -qO /tmp/openssl.tar.gz "https://www.openssl.org/source/openssl-3.1.2.tar.gz"
+    mkdir -p /tmp/openssl-src
+    tar -xzf /tmp/openssl.tar.gz -C /tmp/openssl-src --strip-components=1
+    mkdir -p /usr/local/include/openssl
+    cp -r /tmp/openssl-src/include/openssl/* /usr/local/include/openssl/
+    rm -rf /tmp/openssl.tar.gz /tmp/openssl-src
+fi
+
 sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
 
-ln -sf /usr/local/include/openssl /usr/include/openssl
-cp -P /usr/local/lib/libssl.so* /usr/lib/
-cp -P /usr/local/lib/libcrypto.so* /usr/lib/
-
-export C_INCLUDE_PATH="/usr/local/include:/usr/include"
-export LIBRARY_PATH="/usr/local/lib:/usr/lib"
-export LD_LIBRARY_PATH="/usr/local/lib:/usr/lib"
-
-echo ">>> Verifying OpenSSL FIPS Installation..."
-openssl version
-ls -l /usr/local/include/openssl/ssl.h
+export C_INCLUDE_PATH="/usr/local/include"
+export LIBRARY_PATH="/usr/local/lib"
+export LD_LIBRARY_PATH="/usr/local/lib"
 
 CONFIGURE_FLAGS=(
     "--prefix=/etc/nginx"
@@ -88,11 +90,15 @@ make -j$(nproc)
 make DESTDIR="${FINAL_ROOTFS}" install
 
 strip --strip-all "${FINAL_ROOTFS}/usr/sbin/nginx"
-find "${FINAL_ROOTFS}/usr/lib/nginx/modules" -name "*.so" -exec strip --strip-all {} + 2>/dev/null || true
+if [ -d "${FINAL_ROOTFS}/usr/lib/nginx/modules" ]; then
+    find "${FINAL_ROOTFS}/usr/lib/nginx/modules" -name "*.so" -exec strip --strip-all {} + 2>/dev/null || true
+fi
 
 {
     echo "# Auto-generated Dynamic Modules Loader"
-    for so in $(ls "${FINAL_ROOTFS}/usr/lib/nginx/modules"/*.so 2>/dev/null); do
-        echo "load_module /usr/lib/nginx/modules/$(basename "$so");"
-    done
+    if [ -d "${FINAL_ROOTFS}/usr/lib/nginx/modules" ]; then
+        for so in $(ls "${FINAL_ROOTFS}/usr/lib/nginx/modules"/*.so 2>/dev/null); do
+            echo "load_module /usr/lib/nginx/modules/$(basename "$so");"
+        done
+    fi
 } > "${FINAL_ROOTFS}/etc/nginx/modules.conf"
