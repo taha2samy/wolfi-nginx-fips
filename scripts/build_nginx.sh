@@ -17,6 +17,12 @@ if [ ! -d "${NGINX_SRC}" ]; then
 fi
 
 sed -i 's/-Werror//g' "${NGINX_SRC}/auto/cc/gcc"
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
+export LD_LIBRARY_PATH="/usr/local/lib:/usr/lib"
+
+echo ">>> [CHECK] OpenSSL Headers: $(ls /usr/local/include/openssl/ssl.h)"
+echo ">>> [CHECK] OpenSSL Libs: $(ls /usr/local/lib/libssl.so)"
+
 
 CONFIGURE_FLAGS=(
     "--prefix=/etc/nginx"
