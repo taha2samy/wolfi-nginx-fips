@@ -9,7 +9,7 @@ variable "REPO" { default = "wolfi-nginx-fips" }
 variable "NGINX_VERSION" { default = "1.27.3" }
 
 # --- Base Images (From our previous FIPS project) ---
-variable "FIPS_BASE" { default = "ghcr.io/${OWNER}/wolfi-openssl-fips:3.5.5" }
+variable "FIPS_BASE" { default = "ghcr.io/${OWNER}/wolfi-openssl-fips:3.5.5-dev" }
 variable "FIPS_STATIC" { default = "ghcr.io/${OWNER}/wolfi-openssl-fips:3.5.5-distroless" }
 
 # ------------------------------------------------------------------------------
