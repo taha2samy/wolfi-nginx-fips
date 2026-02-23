@@ -4,7 +4,7 @@ ARG NGINX_VERSION=1.27.3
 ARG FIPS_IMAGE=ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5
 ARG FIPS_IMAGE_DISTROLESS=ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5-distroless
 
-FROM cgr.dev/chainguard/wolfi-base:latest AS builder
+FROM ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5-dev builder
 ARG NGINX_VERSION
 ARG MODULES_JSON
 ARG ENABLED_MODULES
@@ -15,7 +15,6 @@ RUN --mount=type=cache,target=/var/cache/apk \
     coreutils gd-dev libxml2-dev libxslt-dev geoip-dev libmaxminddb-dev \
     binutils scanelf posix-libc-utils bash tzdata ca-certificates perl perl-dev jq
 
-COPY --from=ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5 /usr/local /usr/local
 ENV LD_LIBRARY_PATH="/usr/local/lib"
 
 WORKDIR /src
