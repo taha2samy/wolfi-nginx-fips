@@ -4,7 +4,7 @@ ARG NGINX_VERSION=1.27.3
 ARG FIPS_IMAGE=ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5
 ARG FIPS_IMAGE_DISTROLESS=ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5-distroless
 
-FROM ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5-dev builder
+FROM ghcr.io/taha2samy/wolfi-openssl-fips:3.5.5-dev as builder
 ARG NGINX_VERSION
 ARG MODULES_JSON
 ARG ENABLED_MODULES
